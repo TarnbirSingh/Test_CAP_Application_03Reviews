@@ -1,26 +1,37 @@
 {
   "name": "@capire/reviews",
-  "version": "2.0.2",
-  "description": "A generic reuse service for managing reviews.",
-  "repository": "https://github.com/capire/reviews",
-  "files": [
-    "db",
-    "srv",
-    "index.cds"
-  ],
-  "dependencies": {
-    "@cap-js/hana": ">=1",
-    "@sap/cds": ">=5",
-    "@sap/xssec": "^4.2.7",
-    "express": "^4.17.1"
+  "version": "0.1.3",
+  "description": "CAP sample for master data service",
+  "scripts": {
+  "start": "npx cds run",
+  "watch": "npx cds watch",
+  "build": "npx cds build --production",
+  "deploy": "npx cds deploy"
+},
+   "dependencies": {
+    "@sap/cds": "latest",
+  "@sap/cds-dk": "latest",
+  "@sap/hdi-deploy": "latest",
+  "@cap-js/hana": "^1.8.1",
+  "@sap/hana-client": "^2.4.182",
+  "@sap/xssec": "latest",
+  "express": "^4"
+  },
+  "devDependencies": {
+    "@cap-js/cds-test": "latest"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "cds": {
     "requires": {
-      "messaging": true,
-      "db": true
+      "db": {
+        "kind": "hana-cloud"
+      },
+      "auth": {
+      "kind": "xsuaa"
+    }
     }
   },
-  "scripts": {
-    "start": "cds-serve"
-  }
+  "license": "Apache-2.0"
 }
