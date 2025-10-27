@@ -42,7 +42,6 @@ modules:
         properties:
           srv-url: ${default-url}
     requires:
-      - name: reviews-auth
       - name: reviews-db
 
 resources:
