@@ -1,0 +1,129 @@
+name: CI/CD - CAP to Cloud Foundry
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
+      - name: Validate CDS models
+        run: npx cds compile srv --to csn
+
+      - name: Run tests (if present)
+        run: npm run -s test --if-present
+
+      - name: Build CAP project
+        run: npm run build
+
+      - name: Build MTAR with mbt
+        id: build_mtar
+        shell: bash
+        run: |
+          set -e
+          MTA_ID="$(awk '/^ID:/{print $2}' mta.yaml | tr -d '"' | tr -d "'")"
+          if [ -z "$MTA_ID" ]; then
+            echo "Error: Could not determine MTA ID from mta.yaml"
+            exit 1
+          fi
+          MTAR_NAME="${MTA_ID}.mtar"
+          echo "Resolved MTAR name: $MTAR_NAME"
+          npx -y -p mbt mbt build -p cf -t mta_archives --mtar "$MTAR_NAME"
+          ls -la mta_archives
+          echo "mtar_name=$MTAR_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload MTAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtar
+          path: mta_archives/*.mtar
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: Deploy to Cloud Foundry
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Download MTAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mtar
+          path: mtar_artifact
+
+      - name: Install CloudFoundry CLI
+        shell: bash
+        run: |
+          set -e
+          sudo mkdir -p /usr/share/keyrings
+          wget -q -O - https://packages.cloudfoundry.org/debian/cli.cloudfoundry.org.key | sudo gpg --dearmor -o /usr/share/keyrings/cli.cloudfoundry.org.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cli.cloudfoundry.org.gpg] https://packages.cloudfoundry.org/debian stable main" | sudo tee /etc/apt/sources.list.d/cloudfoundry-cli.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y cf8-cli
+          if command -v cf8 >/dev/null 2>&1; then
+            sudo ln -sf "$(command -v cf8)" /usr/local/bin/cf
+          fi
+          cf version
+
+      - name: Install Multiapps plugin
+        shell: bash
+        run: |
+          set -e
+          cf add-plugin-repo CF-Community https://plugins.cloudfoundry.org || true
+          cf install-plugin -f -r CF-Community "multiapps"
+          cf plugins
+
+      - name: Cloud Foundry Login
+        env:
+          CF_API: ${{ secrets.CF_API }}
+          CF_ORG: ${{ secrets.CF_ORG }}
+          CF_SPACE: ${{ secrets.CF_SPACE }}
+          CF_USERNAME: ${{ secrets.CF_USERNAME }}
+          CF_PASSWORD: ${{ secrets.CF_PASSWORD }}
+        shell: bash
+        run: |
+          set -e
+          for v in CF_API CF_ORG CF_SPACE CF_USERNAME CF_PASSWORD; do
+            if [ -z "${!v}" ]; then
+              echo "Missing required secret: $v"
+              exit 1
+            fi
+          done
+          cf api "$CF_API"
+          cf auth "$CF_USERNAME" "$CF_PASSWORD"
+          cf target -o "$CF_ORG" -s "$CF_SPACE"
+
+      - name: Deploy MTAR
+        shell: bash
+        run: |
+          set -e
+          MTAR_FILE="$(find mtar_artifact -type f -name '*.mtar' | head -n 1)"
+          if [ -z "$MTAR_FILE" ]; then
+            echo "No MTAR file found in 'mtar_artifact' directory."
+            ls -la mtar_artifact || true
+            exit 1
+          fi
+          echo "Deploying MTAR: $MTAR_FILE"
+          cf deploy "$MTAR_FILE" -f
+
+      - name: Cloud Foundry Logout
+        if: always()
+        shell: bash
+        run: cf logout || true
