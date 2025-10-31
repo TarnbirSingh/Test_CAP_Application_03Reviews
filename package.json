@@ -27,10 +27,7 @@
     "requires": {
       "db": {
         "kind": "hana-cloud"
-      },
-      "auth": {
-      "kind": "xsuaa"
-    }
+      }
     }
   },
   "license": "Apache-2.0"

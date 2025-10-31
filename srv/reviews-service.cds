@@ -22,8 +22,8 @@ type Review {
 // Access control restrictions
 annotate ReviewsService.Reviews with @restrict:[
   { grant:'READ',   to:'any' },                 // everybody can read reviews
-  { grant:'CREATE', to:'authenticated-user' },  // users must login to add reviews
-  { grant:'UPDATE', to:'authenticated-user', where:'reviewer=$user' },
+  { grant:'CREATE', to:'system-user' },  // users must login to add reviews
+  { grant:'UPDATE', to:'system-user', where:'reviewer=$user' },
   { grant:'DELETE', to:'admin' },
 ];
 
