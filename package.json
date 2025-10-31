@@ -27,7 +27,8 @@
     "requires": {
       "db": {
         "kind": "hana-cloud"
-      }
+      },
+      "auth": "none"
     }
   },
   "license": "Apache-2.0"
