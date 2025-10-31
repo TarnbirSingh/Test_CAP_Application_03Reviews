@@ -28,7 +28,7 @@
       "db": {
         "kind": "hana-cloud"
       },
-      "auth": "none"
+      "auth": "mocked"
     }
   },
   "license": "Apache-2.0"
